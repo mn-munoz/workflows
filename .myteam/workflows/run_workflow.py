@@ -300,6 +300,7 @@ class WorkflowRuntime:
             "",
             "Return only this role's contribution for the current prompt.",
             "Do not describe the workflow machinery or your hidden reasoning.",
+            "When you are done with the task, state that you are finished and wait for the user to mark the step complete.",
         ]
         return "\n".join(sections).strip()
 
