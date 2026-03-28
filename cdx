@@ -1,0 +1,3 @@
+#! /usr/bin/env bash
+codex "write me a haiku about the changing seasons"
+codex "write me a free verse poem about a really soft dog"

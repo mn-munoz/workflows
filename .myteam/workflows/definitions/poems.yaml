@@ -1,0 +1,5 @@
+name: poems
+description: Write a haiku and then a free verse poem about the same topic.
+roles:
+  - haiku
+  - free_verse

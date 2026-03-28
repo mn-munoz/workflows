@@ -32,4 +32,5 @@ __pycache__/
 *.log
 
 # Project-local tooling
-/.myteam/
+/.myteam/workflows/runs/
+/.myteam/**/__pycache__/
