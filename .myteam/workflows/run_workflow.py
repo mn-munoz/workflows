@@ -6,6 +6,8 @@ import json
 import os
 import subprocess
 import sys
+import tempfile
+import time
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -17,6 +19,7 @@ import yaml
 
 PromptFn = Callable[[str], str]
 RunCommand = Callable[[list[str], Path], "SessionResult"]
+AnswerLoader = Callable[[str, int], str]
 
 
 class WorkflowError(RuntimeError):
@@ -45,6 +48,7 @@ class WorkflowRuntime:
         codex_bin: str = "codex",
         runner: RunCommand | None = None,
         prompt_fn: PromptFn | None = None,
+        answer_loader: AnswerLoader | None = None,
     ) -> None:
         self.skill_root = skill_root.resolve()
         self.definitions_dir = self.skill_root / "definitions"
@@ -54,6 +58,7 @@ class WorkflowRuntime:
         self.codex_bin = codex_bin
         self._runner = runner or self._default_runner
         self._prompt_fn = prompt_fn or input
+        self._answer_loader = answer_loader or self._default_answer_loader
 
     def list_workflows(self) -> list[WorkflowDefinition]:
         if not self.definitions_dir.exists():
@@ -122,10 +127,11 @@ class WorkflowRuntime:
         role_name = workflow.roles[step_index]
         role_instructions = self._read_role_instructions(role_name)
         prompt_text = self._build_codex_prompt(workflow, state, role_name, role_instructions)
+        started_unix = int(time.time())
         started_at = utc_now()
         result = self._runner([self.codex_bin, prompt_text], self.project_root)
         finished_at = utc_now()
-        completion = self._finalize_step(result)
+        completion = self._finalize_step(result, prompt_text, started_unix)
 
         step_record = {
             "step_index": step_index,
@@ -137,7 +143,7 @@ class WorkflowRuntime:
             "exit_code": result.exit_code,
             "stdout": result.stdout,
             "stderr": result.stderr,
-            "summary": completion["summary"],
+            "final_answer": completion["final_answer"],
         }
         state["steps"].append(step_record)
         if completion["status"] == "succeeded":
@@ -234,18 +240,16 @@ class WorkflowRuntime:
             roles=[role.strip() for role in roles],
         )
 
-    def _finalize_step(self, result: SessionResult) -> dict[str, str]:
+    def _finalize_step(self, result: SessionResult, prompt_text: str, started_unix: int) -> dict[str, str]:
         if result.exit_code != 0:
-            return {"status": "failed", "summary": ""}
+            return {"status": "failed", "final_answer": ""}
 
         marked_complete = self._confirm_step_complete()
         if not marked_complete:
-            return {"status": "cancelled", "summary": ""}
+            return {"status": "cancelled", "final_answer": ""}
 
-        summary = self._prompt_fn(
-            "Short summary for the next workflow step (optional): "
-        ).strip()
-        return {"status": "succeeded", "summary": summary}
+        final_answer = self._answer_loader(prompt_text, started_unix).strip()
+        return {"status": "succeeded", "final_answer": final_answer}
 
     def _read_role_instructions(self, role_name: str) -> str:
         role_dir = self.roles_root / role_name
@@ -329,6 +333,62 @@ class WorkflowRuntime:
         completed = subprocess.run(command, cwd=cwd, check=False)
         return SessionResult(exit_code=completed.returncode)
 
+    def _default_answer_loader(self, prompt_text: str, started_unix: int) -> str:
+        session_id = self._find_session_id(prompt_text, started_unix)
+        if session_id is None:
+            return ""
+
+        fd, raw_path = tempfile.mkstemp(prefix="codex-workflow-last-", suffix=".txt")
+        os.close(fd)
+        output_path = Path(raw_path)
+        try:
+            command = [
+                self.codex_bin,
+                "exec",
+                "resume",
+                "--ephemeral",
+                "-o",
+                str(output_path),
+                session_id,
+                "Return only your most recent assistant answer from this session. "
+                "Do not add commentary, labels, quotes, or any other text.",
+            ]
+            completed = subprocess.run(
+                command,
+                cwd=self.project_root,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            if completed.returncode != 0 or not output_path.exists():
+                return ""
+            return output_path.read_text(encoding="utf-8").strip()
+        finally:
+            output_path.unlink(missing_ok=True)
+
+    def _find_session_id(self, prompt_text: str, started_unix: int) -> str | None:
+        history_path = Path.home() / ".codex" / "history.jsonl"
+        if not history_path.exists():
+            return None
+
+        found: str | None = None
+        for line in history_path.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                entry = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+
+            if (
+                entry.get("text") == prompt_text
+                and isinstance(entry.get("session_id"), str)
+                and int(entry.get("ts", 0)) >= max(0, started_unix - 5)
+            ):
+                found = entry["session_id"]
+        return found
+
 
 def completed_outputs_text(state: dict[str, Any]) -> str:
     outputs = [
@@ -342,6 +402,10 @@ def completed_outputs_text(state: dict[str, Any]) -> str:
 
 
 def step_output_text(step: dict[str, Any]) -> str:
+    final_answer = str(step.get("final_answer") or "").strip()
+    if final_answer:
+        return final_answer
+
     summary = str(step.get("summary") or "").strip()
     if summary:
         return summary

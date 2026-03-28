@@ -9,7 +9,7 @@ The workflow skill lives in `.myteam/workflows`. It provides:
 
 - YAML workflow definitions with deterministic role order
 - A Python runner that opens an interactive `codex` session for each role
-- Persistent run state so you can pause, inspect, summarize, and continue
+- Persistent run state so you can pause, inspect, and continue
 
 The default interaction loop is:
 
@@ -17,7 +17,7 @@ The default interaction loop is:
 2. The runner opens a real `codex` CLI session for the next role.
 3. You interact with Codex directly in that session.
 4. When you exit Codex, the runner asks whether to mark the step complete.
-5. Optionally save a short summary for the next role.
+5. If completed, the runner saves the final assistant answer from that session.
 6. The runner can immediately continue into the next role in the same command.
 7. If you stop between roles, run `next` later to resume from the saved run.
 

@@ -51,6 +51,7 @@ class WorkflowRuntimeTests(unittest.TestCase):
             self.skill_root,
             runner=self.fake_runner([]),
             prompt_fn=self.prompt_responses(),
+            answer_loader=self.answer_loader(),
         )
 
         workflows = runtime.list_workflows()
@@ -63,7 +64,8 @@ class WorkflowRuntimeTests(unittest.TestCase):
         runtime = workflow_runner.WorkflowRuntime(
             self.skill_root,
             runner=self.fake_runner([workflow_runner.SessionResult(exit_code=0)]),
-            prompt_fn=self.prompt_responses("y", "winter haiku"),
+            prompt_fn=self.prompt_responses("y"),
+            answer_loader=self.answer_loader("winter haiku"),
         )
 
         state = runtime.start("poems", "write about winter")
@@ -71,7 +73,7 @@ class WorkflowRuntimeTests(unittest.TestCase):
         self.assertEqual(1, state["current_step_index"])
         self.assertEqual(1, len(state["steps"]))
         self.assertEqual("haiku", state["steps"][0]["role"])
-        self.assertEqual("winter haiku", state["steps"][0]["summary"])
+        self.assertEqual("winter haiku", state["steps"][0]["final_answer"])
 
     def test_next_advances_to_second_step_and_uses_updated_prompt(self) -> None:
         prompts: list[str] = []
@@ -83,7 +85,8 @@ class WorkflowRuntimeTests(unittest.TestCase):
         runtime = workflow_runner.WorkflowRuntime(
             self.skill_root,
             runner=runner,
-            prompt_fn=self.prompt_responses("y", "haiku output", "y", "free verse output"),
+            prompt_fn=self.prompt_responses("y", "y", ""),
+            answer_loader=self.answer_loader("haiku output", "free verse output"),
         )
         started = runtime.start("poems", "winter")
 
@@ -103,6 +106,7 @@ class WorkflowRuntimeTests(unittest.TestCase):
             self.skill_root,
             runner=self.fake_runner([]),
             prompt_fn=self.prompt_responses(),
+            answer_loader=self.answer_loader(),
         )
 
         with self.assertRaises(workflow_runner.WorkflowError):
@@ -116,6 +120,7 @@ class WorkflowRuntimeTests(unittest.TestCase):
             self.skill_root,
             runner=runner,
             prompt_fn=self.prompt_responses(),
+            answer_loader=self.answer_loader(),
         )
 
         state = runtime.start("poems", "winter")
@@ -129,6 +134,7 @@ class WorkflowRuntimeTests(unittest.TestCase):
             self.skill_root,
             runner=self.fake_runner([workflow_runner.SessionResult(exit_code=0)]),
             prompt_fn=self.prompt_responses("n"),
+            answer_loader=self.answer_loader(),
         )
 
         state = runtime.start("poems", "winter")
@@ -148,12 +154,11 @@ class WorkflowRuntimeTests(unittest.TestCase):
             runner=runner,
             prompt_fn=self.prompt_responses(
                 "y",
-                "haiku summary",
                 "y",
                 "",
                 "y",
-                "free verse summary",
             ),
+            answer_loader=self.answer_loader("haiku summary", "free verse summary"),
         )
 
         state = runtime.start("poems", "spring")
@@ -187,6 +192,18 @@ class WorkflowRuntimeTests(unittest.TestCase):
                 return ""
 
         return prompt
+
+    @staticmethod
+    def answer_loader(*answers: str):
+        values = iter(answers)
+
+        def loader(_: str, __: int) -> str:
+            try:
+                return next(values)
+            except StopIteration:
+                return ""
+
+        return loader
 
 
 if __name__ == "__main__":
