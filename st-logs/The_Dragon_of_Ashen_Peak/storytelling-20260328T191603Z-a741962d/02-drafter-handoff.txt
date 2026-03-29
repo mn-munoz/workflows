@@ -1,0 +1,8 @@
+TITLE: The Dragon of Ashen Peak
+TARGET AUDIENCE: Middle grade readers ages 10 to 14
+GENRE: Fantasy adventure
+THEME: Courage grows through empathy
+SETTING: A wind carved mountain kingdom where dragons are feared and rarely seen
+STORY FILE: stories/The Dragon of Ashen Peak.md
+AREAS TO FOCUS ON: Confirm the emotional turn from fear to trust feels earned, check that Halric's escalation and exposure are clear for middle grade readers, and verify the ending lands with enough warmth and payoff without slowing the pace.
+RUN_ID: storytelling-20260328T191603Z-a741962d

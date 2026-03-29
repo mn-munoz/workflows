@@ -1,0 +1,7 @@
+name: storytelling
+description: Tell a story in a structured way.
+roles:
+  - builder
+  - drafter
+  - critic
+  - editor

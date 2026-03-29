@@ -95,7 +95,10 @@ class WorkflowRuntimeTests(unittest.TestCase):
         self.assertEqual(2, final_state["current_step_index"])
         self.assertEqual(2, len(final_state["steps"]))
         self.assertIn("Current user prompt:\nlate winter", prompts[1])
-        self.assertIn("haiku:\nhaiku output", prompts[1])
+        self.assertIn("Workflow run id:", prompts[1])
+        self.assertIn("BEGIN UPSTREAM PAYLOAD: haiku", prompts[1])
+        self.assertIn("haiku output", prompts[1])
+        self.assertIn("END UPSTREAM PAYLOAD: haiku", prompts[1])
 
     def test_missing_role_raises_error(self) -> None:
         (self.skill_root / "definitions" / "broken.yaml").write_text(
@@ -166,7 +169,14 @@ class WorkflowRuntimeTests(unittest.TestCase):
 
         self.assertEqual(2, final_state["current_step_index"])
         self.assertEqual(2, len(final_state["steps"]))
-        self.assertIn("haiku:\nhaiku summary", prompts[1])
+        self.assertIn("BEGIN UPSTREAM PAYLOAD: haiku", prompts[1])
+        self.assertIn("haiku summary", prompts[1])
+
+    def test_storytelling_definition_uses_story_pipeline_order(self) -> None:
+        storytelling_path = REPO_ROOT / ".myteam" / "workflows" / "definitions" / "storytelling.yaml"
+        data = workflow_runner.yaml.safe_load(storytelling_path.read_text(encoding="utf-8"))
+
+        self.assertEqual(["builder", "drafter", "critic", "editor"], data["roles"])
 
     @staticmethod
     def fake_runner(results: list[workflow_runner.SessionResult]):

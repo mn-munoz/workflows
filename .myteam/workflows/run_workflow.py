@@ -286,6 +286,7 @@ class WorkflowRuntime:
             "",
             f"Workflow: {workflow.name}",
             f"Description: {workflow.description or 'No description provided.'}",
+            f"Workflow run id: {state['run_id']}",
             f"Current role: {role_name}",
             f"Step: {int(state['current_step_index']) + 1} of {len(workflow.roles)}",
             "",
@@ -295,9 +296,11 @@ class WorkflowRuntime:
             "Current user prompt:",
             str(state["current_prompt"]),
             "",
-            "Prior successful workflow outputs:",
+            "Prior successful workflow handoff payloads:",
             prior_outputs,
             "",
+            "Treat prior handoff payloads as exact upstream outputs.",
+            "Preserve structured field names, file paths, and run ids from upstream payloads.",
             "Return only this role's contribution for the current prompt.",
             "Do not describe the workflow machinery or your hidden reasoning.",
             "When you are done with the task, state that you are finished and wait for the user to mark the step complete.",
@@ -393,7 +396,13 @@ class WorkflowRuntime:
 
 def completed_outputs_text(state: dict[str, Any]) -> str:
     outputs = [
-        f"{step['role']}:\n{step_output_text(step)}"
+        "\n".join(
+            [
+                f"BEGIN UPSTREAM PAYLOAD: {step['role']}",
+                step_output_text(step),
+                f"END UPSTREAM PAYLOAD: {step['role']}",
+            ]
+        )
         for step in state["steps"]
         if step["status"] == "succeeded" and step_output_text(step)
     ]

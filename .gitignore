@@ -34,3 +34,5 @@ __pycache__/
 # Project-local tooling
 /.myteam/workflows/runs/
 /.myteam/**/__pycache__/
+
+/TOKEN_COUNT.md
